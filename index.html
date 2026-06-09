@@ -12,8 +12,8 @@
     .header-left .title { font-size:18px; font-weight:800; color:#2e2520; }
     .header-right { text-align:right; }
     .header-right .fecha { font-size:11px; color:#b0a090; text-transform:capitalize; }
-    .header-right .update-row { display:flex; align-items:center; gap:8px; margin-top:4px; justify-content:flex-end; }
-    .header-right .update-time { font-size:10px; color:#b0a090; }
+    .update-row { display:flex; align-items:center; gap:8px; margin-top:4px; justify-content:flex-end; }
+    .update-time { font-size:10px; color:#b0a090; }
     .btn-refresh { font-size:10px; background:#f0ebe4; border:none; border-radius:8px; padding:4px 10px; color:#7a6a5a; cursor:pointer; font-weight:600; }
     .container { padding:16px 20px; max-width:700px; margin:0 auto; }
     .kpis { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
@@ -42,7 +42,7 @@
     .turno-nombre { font-size:13px; font-weight:600; color:#2e2520; }
     .turno-proc { font-size:11px; color:#b0a090; margin-top:2px; }
     .turno-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
-    .badge { display:inline-flex; align-items:center; gap:5px; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .badge { display:inline-flex; align-items:center; gap:5px; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600; }
     .badge-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
     .turno-total { font-size:12px; font-weight:700; color:#7a9e7e; }
     .vacio { background:#fff; border-radius:14px; padding:32px 24px; text-align:center; border:1px solid #ede8e2; color:#c8bfb0; font-size:13px; }
@@ -80,7 +80,7 @@
   <div id="app">
     <div class="loading">
       <div class="icon">⏳</div>
-      <div>Cargando agenda desde Google Sheets...</div>
+      <div>Cargando agenda...</div>
     </div>
   </div>
   <div class="footer">SKINIA · Datos en tiempo real desde Google Sheets</div>
@@ -91,107 +91,66 @@ const API_URL = "https://script.google.com/macros/s/AKfycbzbCm_3tlkQuDvZywqn_hq2
 let vistaActual = "hoy";
 let turnosGlobal = [];
 
-function parseFecha(str) {
-  const [d,m,y] = str.split("/");
-  return new Date(+y,+m-1,+d);
-}
+function parseFecha(str) { const [d,m,y]=str.split("/"); return new Date(+y,+m-1,+d); }
 function hoy() { const h=new Date(); h.setHours(0,0,0,0); return h; }
 function manana() { const m=hoy(); m.setDate(m.getDate()+1); return m; }
 function mismaFecha(a,b) { return a.getTime()===b.getTime(); }
-function fmt$(n) { return n ? "$"+n.toLocaleString("es-AR") : "—"; }
+function fmt$(n) { return n?"$"+n.toLocaleString("es-AR"):"—"; }
 
 function estadoBadge(estado) {
-  const cfg = {
-    "Atendido": {color:"#7a9e7e",bg:"#f0f5f0",dot:"#7a9e7e"},
-    "Cancelado": {color:"#c0392b",bg:"#fff0ee",dot:"#c0392b"},
-  }[estado] || {color:"#b0a090",bg:"#faf8f5",dot:"#c8bfb0"};
-  const label = estado || "Confirmado";
-  return `<span class="badge" style="background:${cfg.bg};color:${cfg.color}"><span class="badge-dot" style="background:${cfg.dot}"></span>${label}</span>`;
+  const cfg={"Atendido":{color:"#7a9e7e",bg:"#f0f5f0",dot:"#7a9e7e"},"Cancelado":{color:"#c0392b",bg:"#fff0ee",dot:"#c0392b"}}[estado]||{color:"#b0a090",bg:"#faf8f5",dot:"#c8bfb0"};
+  return `<span class="badge" style="background:${cfg.bg};color:${cfg.color}"><span class="badge-dot" style="background:${cfg.dot}"></span>${estado||"Confirmado"}</span>`;
 }
 
 function agruparPorFecha(turnos) {
-  const map = {};
-  turnos.forEach(t => {
-    if (!map[t.fecha]) map[t.fecha] = {fecha:t.fecha, dia:t.dia, turnos:[]};
-    map[t.fecha].turnos.push(t);
-  });
-  return Object.values(map).sort((a,b) => parseFecha(a.fecha)-parseFecha(b.fecha));
+  const map={};
+  turnos.forEach(t=>{ if(!map[t.fecha]) map[t.fecha]={fecha:t.fecha,dia:t.dia,turnos:[]}; map[t.fecha].turnos.push(t); });
+  return Object.values(map).sort((a,b)=>parseFecha(a.fecha)-parseFecha(b.fecha));
 }
 
-function renderDia(dia, esHoy) {
-  const recaudado = dia.turnos.reduce((s,t)=>s+t.total,0);
-  const turnos = dia.turnos.map(t => `
+function renderDia(dia,esHoy) {
+  const rec=dia.turnos.reduce((s,t)=>s+t.total,0);
+  const ts=dia.turnos.map(t=>`
     <div class="turno ${t.estado==='Atendido'?'atendido':''}">
       <div class="turno-hora">${t.horario}</div>
-      <div>
-        <div class="turno-nombre">${t.nombre}</div>
-        ${t.procedimiento ? `<div class="turno-proc">${t.procedimiento}</div>` : ""}
-      </div>
-      <div class="turno-right">
-        ${estadoBadge(t.estado)}
-        ${t.total > 0 ? `<span class="turno-total">${fmt$(t.total)}</span>` : ""}
-      </div>
-    </div>
-  `).join("");
-  return `
-    <div class="dia-card ${esHoy?'hoy':''}">
-      <div class="dia-header">
-        <div class="dia-titulo">
-          ${dia.dia} ${dia.fecha}
-          ${esHoy ? '<span class="hoy-badge">HOY</span>' : ""}
-        </div>
-        <div class="dia-info">
-          ${dia.turnos.length} turno${dia.turnos.length!==1?'s':''}
-          ${recaudado>0?`<span class="dia-recaudado">${fmt$(recaudado)}</span>`:""}
-        </div>
-      </div>
-      ${turnos}
-    </div>
-  `;
+      <div><div class="turno-nombre">${t.nombre}</div>${t.procedimiento?`<div class="turno-proc">${t.procedimiento}</div>`:""}</div>
+      <div class="turno-right">${estadoBadge(t.estado)}${t.total>0?`<span class="turno-total">${fmt$(t.total)}</span>`:""}</div>
+    </div>`).join("");
+  return `<div class="dia-card ${esHoy?'hoy':''}">
+    <div class="dia-header">
+      <div class="dia-titulo">${dia.dia} ${dia.fecha}${esHoy?'<span class="hoy-badge">HOY</span>':""}</div>
+      <div class="dia-info">${dia.turnos.length} turno${dia.turnos.length!==1?'s':''}${rec>0?`<span class="dia-recaudado">${fmt$(rec)}</span>`:""}</div>
+    </div>${ts}</div>`;
 }
 
 function renderGrafico(turnos) {
-  const meses = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  const map = {};
-  turnos.forEach(t => {
-    const m = meses[+t.fecha.split("/")[1]];
-    if (!map[m]) map[m] = 0;
-    map[m]++;
-  });
-  const items = Object.entries(map);
-  if (!items.length) return "";
-  const max = Math.max(...items.map(x=>x[1]));
-  const barras = items.map(([mes,n],i) => `
-    <div class="barra-wrap">
-      <div class="barra" style="height:${Math.max(8,Math.round((n/max)*70))}px;background:${i===0?'#c9956a':'#e8ddd2'}"></div>
-      <div class="barra-label">${mes}</div>
-    </div>
-  `).join("");
-  return `<div class="grafico-wrap"><div class="grafico-title">Pacientes por mes</div><div class="barras">${barras}</div></div>`;
+  const mn=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const map={};
+  turnos.forEach(t=>{ const k=mn[+t.fecha.split("/")[1]]; if(!map[k]) map[k]=0; map[k]++; });
+  const items=Object.entries(map);
+  if(!items.length) return "";
+  const max=Math.max(...items.map(x=>x[1]));
+  return `<div class="grafico-wrap"><div class="grafico-title">Pacientes por mes</div><div class="barras">${items.map(([mes,n],i)=>`<div class="barra-wrap"><div class="barra" style="height:${Math.max(8,Math.round((n/max)*70))}px;background:${i===0?'#c9956a':'#e8ddd2'}"></div><div class="barra-label">${mes}</div></div>`).join("")}</div></div>`;
 }
 
 function render() {
-  const H = hoy(), M = manana();
-  const dias = agruparPorFecha(turnosGlobal);
-  const diasHoy = dias.filter(d => mismaFecha(parseFecha(d.fecha),H));
-  const diasManana = dias.filter(d => mismaFecha(parseFecha(d.fecha),M));
-  const diasResto = dias.filter(d => { const f=parseFecha(d.fecha); return !mismaFecha(f,H)&&!mismaFecha(f,M)&&f>=H; });
-
-  const total = turnosGlobal.length;
-  const atendidos = turnosGlobal.filter(t=>t.estado==="Atendido").length;
-  const pendientes = turnosGlobal.filter(t=>t.estado!=="Atendido"&&t.estado!=="Cancelado").length;
-  const recaudado = turnosGlobal.reduce((s,t)=>s+t.total,0);
-
-  const cHoy = diasHoy.reduce((s,d)=>s+d.turnos.length,0);
-  const cManana = diasManana.reduce((s,d)=>s+d.turnos.length,0);
-  const cResto = diasResto.reduce((s,d)=>s+d.turnos.length,0);
-
-  let contenido = "";
-  if (vistaActual==="hoy") contenido = diasHoy.length ? diasHoy.map(d=>renderDia(d,true)).join("") : '<div class="vacio">Sin turnos para hoy</div>';
-  if (vistaActual==="manana") contenido = diasManana.length ? diasManana.map(d=>renderDia(d,false)).join("") : '<div class="vacio">Sin turnos para mañana</div>';
-  if (vistaActual==="resto") contenido = diasResto.length ? diasResto.map(d=>renderDia(d,false)).join("") : '<div class="vacio">Sin próximos turnos</div>';
-
-  document.getElementById("app").innerHTML = `
+  const H=hoy(),M=manana();
+  const dias=agruparPorFecha(turnosGlobal);
+  const diasHoy=dias.filter(d=>mismaFecha(parseFecha(d.fecha),H));
+  const diasManana=dias.filter(d=>mismaFecha(parseFecha(d.fecha),M));
+  const diasResto=dias.filter(d=>{ const f=parseFecha(d.fecha); return !mismaFecha(f,H)&&!mismaFecha(f,M)&&f>=H; });
+  const total=turnosGlobal.length;
+  const atendidos=turnosGlobal.filter(t=>t.estado==="Atendido").length;
+  const pendientes=turnosGlobal.filter(t=>t.estado!=="Atendido"&&t.estado!=="Cancelado").length;
+  const recaudado=turnosGlobal.reduce((s,t)=>s+t.total,0);
+  const cH=diasHoy.reduce((s,d)=>s+d.turnos.length,0);
+  const cM=diasManana.reduce((s,d)=>s+d.turnos.length,0);
+  const cR=diasResto.reduce((s,d)=>s+d.turnos.length,0);
+  let contenido="";
+  if(vistaActual==="hoy") contenido=diasHoy.length?diasHoy.map(d=>renderDia(d,true)).join(""):'<div class="vacio">Sin turnos para hoy</div>';
+  if(vistaActual==="manana") contenido=diasManana.length?diasManana.map(d=>renderDia(d,false)).join(""):'<div class="vacio">Sin turnos para mañana</div>';
+  if(vistaActual==="resto") contenido=diasResto.length?diasResto.map(d=>renderDia(d,false)).join(""):'<div class="vacio">Sin próximos turnos</div>';
+  document.getElementById("app").innerHTML=`
     <div class="kpis">
       <div class="kpi"><div class="label">Total</div><div class="value" style="color:#3a2e28">${total}</div></div>
       <div class="kpi"><div class="label">Atendidos</div><div class="value" style="color:#7a9e7e">${atendidos}</div></div>
@@ -199,39 +158,30 @@ function render() {
       <div class="kpi"><div class="label">Recaudado</div><div class="value small" style="color:#a87d5a">${fmt$(recaudado)}</div></div>
     </div>
     <div class="tabs">
-      <button class="tab ${vistaActual==='hoy'?'active':''}" onclick="cambiarVista('hoy')">
-        <span>Hoy</span><span class="count ${cHoy===0?'empty':''}">${cHoy}</span>
-      </button>
-      <button class="tab ${vistaActual==='manana'?'active':''}" onclick="cambiarVista('manana')">
-        <span>Mañana</span><span class="count ${cManana===0?'empty':''}">${cManana}</span>
-      </button>
-      <button class="tab ${vistaActual==='resto'?'active':''}" onclick="cambiarVista('resto')">
-        <span>Próximos</span><span class="count ${cResto===0?'empty':''}">${cResto}</span>
-      </button>
+      <button class="tab ${vistaActual==='hoy'?'active':''}" onclick="cambiarVista('hoy')"><span>Hoy</span><span class="count ${cH===0?'empty':''}">${cH}</span></button>
+      <button class="tab ${vistaActual==='manana'?'active':''}" onclick="cambiarVista('manana')"><span>Mañana</span><span class="count ${cM===0?'empty':''}">${cM}</span></button>
+      <button class="tab ${vistaActual==='resto'?'active':''}" onclick="cambiarVista('resto')"><span>Próximos</span><span class="count ${cR===0?'empty':''}">${cR}</span></button>
     </div>
-    ${contenido}
-    ${renderGrafico(turnosGlobal)}
-  `;
+    ${contenido}${renderGrafico(turnosGlobal)}`;
 }
 
-function cambiarVista(v) { vistaActual = v; render(); }
+function cambiarVista(v) { vistaActual=v; render(); }
 
-async function cargarDatos() {
-  document.getElementById("app").innerHTML = '<div class="loading"><div class="icon">⏳</div><div>Cargando...</div></div>';
-  try {
-    const r = await fetch(API_URL);
-    const data = await r.json();
-    turnosGlobal = Array.isArray(data) ? data : [];
-    document.getElementById("updateTime").textContent = "Actualizado " + new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
-    render();
-  } catch(e) {
-    document.getElementById("app").innerHTML = '<div class="error"><p>Error al cargar los datos.</p><button class="btn-retry" onclick="cargarDatos()">Reintentar</button></div>';
-  }
+function cargarDatos() {
+  document.getElementById("app").innerHTML='<div class="loading"><div class="icon">⏳</div><div>Cargando...</div></div>';
+  const script=document.createElement("script");
+  script.src=API_URL+"?callback=recibirDatos&t="+Date.now();
+  script.onerror=()=>{ document.getElementById("app").innerHTML='<div class="error"><p>Error al cargar.</p><button class="btn-retry" onclick="cargarDatos()">Reintentar</button></div>'; };
+  document.head.appendChild(script);
 }
 
-// Fecha de hoy en header
-document.getElementById("fechaHoy").textContent = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+window.recibirDatos = function(data) {
+  turnosGlobal=Array.isArray(data)?data:[];
+  document.getElementById("updateTime").textContent="Actualizado "+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+  render();
+};
 
+document.getElementById("fechaHoy").textContent=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 cargarDatos();
 </script>
 </body>
