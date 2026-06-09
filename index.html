@@ -169,10 +169,16 @@ function cambiarVista(v) { vistaActual=v; render(); }
 
 function cargarDatos() {
   document.getElementById("app").innerHTML='<div class="loading"><div class="icon">⏳</div><div>Cargando...</div></div>';
-  const script=document.createElement("script");
-  script.src=API_URL+"?callback=recibirDatos&t="+Date.now();
-  script.onerror=()=>{ document.getElementById("app").innerHTML='<div class="error"><p>Error al cargar.</p><button class="btn-retry" onclick="cargarDatos()">Reintentar</button></div>'; };
-  document.head.appendChild(script);
+  fetch(API_URL + "?t=" + Date.now(), {redirect: "follow"})
+    .then(r => r.json())
+    .then(data => {
+      turnosGlobal = Array.isArray(data) ? data : [];
+      document.getElementById("updateTime").textContent = "Actualizado " + new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+      render();
+    })
+    .catch(() => {
+      document.getElementById("app").innerHTML='<div class="error"><p>Error al cargar.</p><button class="btn-retry" onclick="cargarDatos()">Reintentar</button></div>';
+    });
 }
 
 window.recibirDatos = function(data) {
