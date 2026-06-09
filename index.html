@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skinia · Agenda</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Inter', 'Helvetica Neue', sans-serif; background:#f8f5f1; color:#2e2520; }
+    .header { background:#fff; border-bottom:1px solid #ede8e2; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; }
+    .header-left .sub { font-size:10px; letter-spacing:.15em; color:#b0a090; text-transform:uppercase; font-weight:700; margin-bottom:2px; }
+    .header-left .title { font-size:18px; font-weight:800; color:#2e2520; }
+    .header-right { text-align:right; }
+    .header-right .fecha { font-size:11px; color:#b0a090; text-transform:capitalize; }
+    .header-right .update-row { display:flex; align-items:center; gap:8px; margin-top:4px; justify-content:flex-end; }
+    .header-right .update-time { font-size:10px; color:#b0a090; }
+    .btn-refresh { font-size:10px; background:#f0ebe4; border:none; border-radius:8px; padding:4px 10px; color:#7a6a5a; cursor:pointer; font-weight:600; }
+    .container { padding:16px 20px; max-width:700px; margin:0 auto; }
+    .kpis { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+    .kpi { background:#fff; border-radius:12px; padding:12px 14px; flex:1; border:1px solid #ede8e2; min-width:0; }
+    .kpi .label { font-size:9px; color:#a8a09a; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+    .kpi .value { font-size:22px; font-weight:800; line-height:1; }
+    .kpi .value.small { font-size:13px; }
+    .tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .tab { flex:1; padding:10px 8px; border-radius:12px; font-size:12px; font-weight:700; border:1.5px solid #e8e0d8; background:#fff; color:#7a6a5a; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .tab.active { border:2px solid #a87d5a; background:#a87d5a; color:#fff; }
+    .tab .count { font-size:18px; font-weight:800; color:#c9956a; }
+    .tab.active .count { color:#fff; }
+    .tab .count.empty { color:#c8bfb0; }
+    .dia-card { background:#fff; border-radius:14px; border:1px solid #ede8e2; margin-bottom:14px; overflow:hidden; }
+    .dia-card.hoy { box-shadow:0 0 0 2px #c9956a44; }
+    .dia-header { padding:13px 20px; background:#fdfcfb; border-bottom:1px solid #f0ebe4; display:flex; align-items:center; justify-content:space-between; }
+    .dia-card.hoy .dia-header { background:#fffaf5; }
+    .dia-titulo { font-weight:800; font-size:14px; color:#2e2520; display:flex; align-items:center; gap:8px; }
+    .hoy-badge { font-size:10px; background:#c9956a; color:#fff; border-radius:10px; padding:2px 9px; font-weight:700; }
+    .dia-info { font-size:12px; color:#b0a090; }
+    .dia-recaudado { color:#a87d5a; font-weight:700; margin-left:10px; }
+    .turno { display:grid; grid-template-columns:56px 1fr auto; gap:12px; padding:13px 20px; align-items:center; border-bottom:1px solid #f8f4f0; }
+    .turno:last-child { border-bottom:none; }
+    .turno.atendido { background:#fafff9; }
+    .turno-hora { font-size:13px; font-weight:700; color:#7a6a5a; font-family:monospace; }
+    .turno-nombre { font-size:13px; font-weight:600; color:#2e2520; }
+    .turno-proc { font-size:11px; color:#b0a090; margin-top:2px; }
+    .turno-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+    .badge { display:inline-flex; align-items:center; gap:5px; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .badge-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+    .turno-total { font-size:12px; font-weight:700; color:#7a9e7e; }
+    .vacio { background:#fff; border-radius:14px; padding:32px 24px; text-align:center; border:1px solid #ede8e2; color:#c8bfb0; font-size:13px; }
+    .grafico-wrap { background:#fff; border-radius:14px; padding:16px 18px; border:1px solid #ede8e2; margin-top:6px; }
+    .grafico-title { font-size:10px; font-weight:700; color:#b0a090; text-transform:uppercase; letter-spacing:.07em; margin-bottom:12px; }
+    .barras { display:flex; align-items:flex-end; gap:8px; height:80px; }
+    .barra-wrap { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+    .barra { width:100%; border-radius:4px 4px 0 0; min-height:4px; }
+    .barra-label { font-size:9px; color:#b0a090; }
+    .loading { text-align:center; padding:60px 0; color:#b0a090; }
+    .loading .icon { font-size:28px; margin-bottom:12px; }
+    .error { text-align:center; padding:40px 0; }
+    .error p { font-size:13px; color:#c0392b; margin-bottom:12px; }
+    .btn-retry { padding:8px 20px; border-radius:10px; background:#a87d5a; color:#fff; border:none; cursor:pointer; font-weight:600; }
+    .footer { text-align:center; padding:16px 0 4px; font-size:10px; color:#c8bfb0; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="sub">Agenda · Skinia</div>
+    <div class="title">Turnos</div>
+  </div>
+  <div class="header-right">
+    <div class="fecha" id="fechaHoy"></div>
+    <div class="update-row">
+      <span class="update-time" id="updateTime"></span>
+      <button class="btn-refresh" onclick="cargarDatos()">↻ Actualizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="app">
+    <div class="loading">
+      <div class="icon">⏳</div>
+      <div>Cargando agenda desde Google Sheets...</div>
+    </div>
+  </div>
+  <div class="footer">SKINIA · Datos en tiempo real desde Google Sheets</div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzbCm_3tlkQuDvZywqn_hq2xtZomDcoe0Q9EIkHO1p-lkkWkdyj5M_g5c4r1HyHZcoEoA/exec";
+let vistaActual = "hoy";
+let turnosGlobal = [];
+
+function parseFecha(str) {
+  const [d,m,y] = str.split("/");
+  return new Date(+y,+m-1,+d);
+}
+function hoy() { const h=new Date(); h.setHours(0,0,0,0); return h; }
+function manana() { const m=hoy(); m.setDate(m.getDate()+1); return m; }
+function mismaFecha(a,b) { return a.getTime()===b.getTime(); }
+function fmt$(n) { return n ? "$"+n.toLocaleString("es-AR") : "—"; }
+
+function estadoBadge(estado) {
+  const cfg = {
+    "Atendido": {color:"#7a9e7e",bg:"#f0f5f0",dot:"#7a9e7e"},
+    "Cancelado": {color:"#c0392b",bg:"#fff0ee",dot:"#c0392b"},
+  }[estado] || {color:"#b0a090",bg:"#faf8f5",dot:"#c8bfb0"};
+  const label = estado || "Confirmado";
+  return `<span class="badge" style="background:${cfg.bg};color:${cfg.color}"><span class="badge-dot" style="background:${cfg.dot}"></span>${label}</span>`;
+}
+
+function agruparPorFecha(turnos) {
+  const map = {};
+  turnos.forEach(t => {
+    if (!map[t.fecha]) map[t.fecha] = {fecha:t.fecha, dia:t.dia, turnos:[]};
+    map[t.fecha].turnos.push(t);
+  });
+  return Object.values(map).sort((a,b) => parseFecha(a.fecha)-parseFecha(b.fecha));
+}
+
+function renderDia(dia, esHoy) {
+  const recaudado = dia.turnos.reduce((s,t)=>s+t.total,0);
+  const turnos = dia.turnos.map(t => `
+    <div class="turno ${t.estado==='Atendido'?'atendido':''}">
+      <div class="turno-hora">${t.horario}</div>
+      <div>
+        <div class="turno-nombre">${t.nombre}</div>
+        ${t.procedimiento ? `<div class="turno-proc">${t.procedimiento}</div>` : ""}
+      </div>
+      <div class="turno-right">
+        ${estadoBadge(t.estado)}
+        ${t.total > 0 ? `<span class="turno-total">${fmt$(t.total)}</span>` : ""}
+      </div>
+    </div>
+  `).join("");
+  return `
+    <div class="dia-card ${esHoy?'hoy':''}">
+      <div class="dia-header">
+        <div class="dia-titulo">
+          ${dia.dia} ${dia.fecha}
+          ${esHoy ? '<span class="hoy-badge">HOY</span>' : ""}
+        </div>
+        <div class="dia-info">
+          ${dia.turnos.length} turno${dia.turnos.length!==1?'s':''}
+          ${recaudado>0?`<span class="dia-recaudado">${fmt$(recaudado)}</span>`:""}
+        </div>
+      </div>
+      ${turnos}
+    </div>
+  `;
+}
+
+function renderGrafico(turnos) {
+  const meses = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const map = {};
+  turnos.forEach(t => {
+    const m = meses[+t.fecha.split("/")[1]];
+    if (!map[m]) map[m] = 0;
+    map[m]++;
+  });
+  const items = Object.entries(map);
+  if (!items.length) return "";
+  const max = Math.max(...items.map(x=>x[1]));
+  const barras = items.map(([mes,n],i) => `
+    <div class="barra-wrap">
+      <div class="barra" style="height:${Math.max(8,Math.round((n/max)*70))}px;background:${i===0?'#c9956a':'#e8ddd2'}"></div>
+      <div class="barra-label">${mes}</div>
+    </div>
+  `).join("");
+  return `<div class="grafico-wrap"><div class="grafico-title">Pacientes por mes</div><div class="barras">${barras}</div></div>`;
+}
+
+function render() {
+  const H = hoy(), M = manana();
+  const dias = agruparPorFecha(turnosGlobal);
+  const diasHoy = dias.filter(d => mismaFecha(parseFecha(d.fecha),H));
+  const diasManana = dias.filter(d => mismaFecha(parseFecha(d.fecha),M));
+  const diasResto = dias.filter(d => { const f=parseFecha(d.fecha); return !mismaFecha(f,H)&&!mismaFecha(f,M)&&f>=H; });
+
+  const total = turnosGlobal.length;
+  const atendidos = turnosGlobal.filter(t=>t.estado==="Atendido").length;
+  const pendientes = turnosGlobal.filter(t=>t.estado!=="Atendido"&&t.estado!=="Cancelado").length;
+  const recaudado = turnosGlobal.reduce((s,t)=>s+t.total,0);
+
+  const cHoy = diasHoy.reduce((s,d)=>s+d.turnos.length,0);
+  const cManana = diasManana.reduce((s,d)=>s+d.turnos.length,0);
+  const cResto = diasResto.reduce((s,d)=>s+d.turnos.length,0);
+
+  let contenido = "";
+  if (vistaActual==="hoy") contenido = diasHoy.length ? diasHoy.map(d=>renderDia(d,true)).join("") : '<div class="vacio">Sin turnos para hoy</div>';
+  if (vistaActual==="manana") contenido = diasManana.length ? diasManana.map(d=>renderDia(d,false)).join("") : '<div class="vacio">Sin turnos para mañana</div>';
+  if (vistaActual==="resto") contenido = diasResto.length ? diasResto.map(d=>renderDia(d,false)).join("") : '<div class="vacio">Sin próximos turnos</div>';
+
+  document.getElementById("app").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="label">Total</div><div class="value" style="color:#3a2e28">${total}</div></div>
+      <div class="kpi"><div class="label">Atendidos</div><div class="value" style="color:#7a9e7e">${atendidos}</div></div>
+      <div class="kpi"><div class="label">Pendientes</div><div class="value" style="color:#c9956a">${pendientes}</div></div>
+      <div class="kpi"><div class="label">Recaudado</div><div class="value small" style="color:#a87d5a">${fmt$(recaudado)}</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab ${vistaActual==='hoy'?'active':''}" onclick="cambiarVista('hoy')">
+        <span>Hoy</span><span class="count ${cHoy===0?'empty':''}">${cHoy}</span>
+      </button>
+      <button class="tab ${vistaActual==='manana'?'active':''}" onclick="cambiarVista('manana')">
+        <span>Mañana</span><span class="count ${cManana===0?'empty':''}">${cManana}</span>
+      </button>
+      <button class="tab ${vistaActual==='resto'?'active':''}" onclick="cambiarVista('resto')">
+        <span>Próximos</span><span class="count ${cResto===0?'empty':''}">${cResto}</span>
+      </button>
+    </div>
+    ${contenido}
+    ${renderGrafico(turnosGlobal)}
+  `;
+}
+
+function cambiarVista(v) { vistaActual = v; render(); }
+
+async function cargarDatos() {
+  document.getElementById("app").innerHTML = '<div class="loading"><div class="icon">⏳</div><div>Cargando...</div></div>';
+  try {
+    const r = await fetch(API_URL);
+    const data = await r.json();
+    turnosGlobal = Array.isArray(data) ? data : [];
+    document.getElementById("updateTime").textContent = "Actualizado " + new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+    render();
+  } catch(e) {
+    document.getElementById("app").innerHTML = '<div class="error"><p>Error al cargar los datos.</p><button class="btn-retry" onclick="cargarDatos()">Reintentar</button></div>';
+  }
+}
+
+// Fecha de hoy en header
+document.getElementById("fechaHoy").textContent = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+
+cargarDatos();
+</script>
+</body>
+</html>
